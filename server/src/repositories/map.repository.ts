@@ -25,6 +25,10 @@ import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity
 
 @Injectable()
 export class MapRepository implements IMapRepository {
+  private lastRequestTime = 0;
+  private requestQueue: Promise<void> = Promise.resolve();
+  private readonly REQUEST_INTERVAL = 334; // 333ms = 每秒3次请求
+
   constructor(
     @InjectRepository(AssetEntity) private assetRepository: Repository<AssetEntity>,
     @InjectRepository(GeodataPlacesEntity) private geodataPlacesRepository: Repository<GeodataPlacesEntity>,
@@ -114,6 +118,10 @@ export class MapRepository implements IMapRepository {
   }
 
   async reverseGeocodeWithAmap(point: GeoPoint): Promise<ReverseGeocodeResult> {
+    // 等待之前的请求完成并确保请求间隔
+    await this.requestQueue;
+    this.requestQueue = this.enforceRequestLimit();
+
     this.logger.debug(`Request: ${point.latitude},${point.longitude}`);
 
     // read key list from env,AMAP_GEOCODE_KEYS, then random select one key
@@ -147,6 +155,16 @@ export class MapRepository implements IMapRepository {
     return { country, state, city, district, address };
   }
 
+  private async enforceRequestLimit(): Promise<void> {
+    const now = Date.now();
+    const timeToWait = Math.max(0, this.REQUEST_INTERVAL - (now - this.lastRequestTime));
+    
+    if (timeToWait > 0) {
+      await new Promise(resolve => setTimeout(resolve, timeToWait));
+    }
+    
+    this.lastRequestTime = Date.now();
+  }
 
   async reverseGeocode(point: GeoPoint): Promise<ReverseGeocodeResult> {
     this.logger.debug(`Request: ${point.latitude},${point.longitude}`);
