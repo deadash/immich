@@ -101,4 +101,10 @@ export class ExifEntity {
   /* Video info */
   @Column({ type: 'float8', nullable: true })
   fps?: number | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  district!: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  address!: string | null;
 }

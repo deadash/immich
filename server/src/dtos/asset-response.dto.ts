@@ -14,6 +14,7 @@ import { AssetFaceEntity } from 'src/entities/asset-face.entity';
 import { AssetEntity } from 'src/entities/asset.entity';
 import { AssetType } from 'src/enum';
 import { mimeTypes } from 'src/utils/mime-types';
+import { parse } from 'node:path';
 
 export class SanitizedAssetResponseDto {
   id!: string;
@@ -69,6 +70,7 @@ export type AssetMapOptions = {
   stripMetadata?: boolean;
   withStack?: boolean;
   auth?: AuthDto;
+  exifAddressAsCity?: boolean;
 };
 
 const peopleWithFaces = (faces: AssetFaceEntity[]): PersonWithFacesResponseDto[] => {
@@ -102,7 +104,7 @@ const mapStack = (entity: AssetEntity) => {
 };
 
 export function mapAsset(entity: AssetEntity, options: AssetMapOptions = {}): AssetResponseDto {
-  const { stripMetadata = false, withStack = false } = options;
+  const { stripMetadata = false, withStack = false, exifAddressAsCity = false } = options;
 
   if (stripMetadata) {
     const sanitizedAssetResponse: SanitizedAssetResponseDto = {
@@ -117,6 +119,14 @@ export function mapAsset(entity: AssetEntity, options: AssetMapOptions = {}): As
     };
     return sanitizedAssetResponse as AssetResponseDto;
   }
+
+  // check if entity.originalFileName has a file extension
+  // if not, add the extension from entity.originalPath
+  let originalFileName = entity.originalFileName;
+  if (!parse(originalFileName).ext) {
+    originalFileName += parse(entity.originalPath).ext;
+  }
+
 
   return {
     id: entity.id,
@@ -138,7 +148,7 @@ export function mapAsset(entity: AssetEntity, options: AssetMapOptions = {}): As
     isArchived: entity.isArchived,
     isTrashed: !!entity.deletedAt,
     duration: entity.duration ?? '0:00:00.00000',
-    exifInfo: entity.exifInfo ? mapExif(entity.exifInfo) : undefined,
+    exifInfo: entity.exifInfo ? mapExif(entity.exifInfo, exifAddressAsCity) : undefined,
     livePhotoVideoId: entity.livePhotoVideoId,
     tags: entity.tags?.map((tag) => mapTag(tag)),
     people: peopleWithFaces(entity.faces),

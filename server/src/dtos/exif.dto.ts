@@ -23,12 +23,19 @@ export class ExifResponseDto {
   city?: string | null = null;
   state?: string | null = null;
   country?: string | null = null;
+  district?: string | null = null;
+  address?: string | null = null;
   description?: string | null = null;
   projectionType?: string | null = null;
   rating?: number | null = null;
 }
 
-export function mapExif(entity: ExifEntity): ExifResponseDto {
+export function mapExif(entity: ExifEntity, exifAddressAsCity: boolean): ExifResponseDto {
+  let city = entity.city;
+  if (exifAddressAsCity) {
+    city = entity.address;
+  }
+
   return {
     make: entity.make,
     model: entity.model,
@@ -46,9 +53,11 @@ export function mapExif(entity: ExifEntity): ExifResponseDto {
     exposureTime: entity.exposureTime,
     latitude: entity.latitude,
     longitude: entity.longitude,
-    city: entity.city,
+    city: city,
     state: entity.state,
     country: entity.country,
+    district: entity.district,
+    address: entity.address,
     description: entity.description,
     projectionType: entity.projectionType,
     rating: entity.rating,

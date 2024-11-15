@@ -108,12 +108,55 @@ export class MapRepository implements IMapRepository {
       city: asset.exifInfo!.city,
       state: asset.exifInfo!.state,
       country: asset.exifInfo!.country,
+      district: asset.exifInfo!.district,
+      address: asset.exifInfo!.address,
     }));
   }
+
+  async reverseGeocodeWithAmap(point: GeoPoint): Promise<ReverseGeocodeResult> {
+    this.logger.debug(`Request: ${point.latitude},${point.longitude}`);
+
+    // read key list from env,AMAP_GEOCODE_KEYS, then random select one key
+    const keys = process.env.AMAP_GEOCODE_KEYS?.split(',') ?? [];
+    const key = keys[Math.floor(Math.random() * keys.length)];
+    const url = `https://restapi.amap.com/v3/geocode/regeo`;
+    const params = {
+      key: key,
+      location: `${point.longitude},${point.latitude}`,
+      radius: "1000",
+      extensions: "base",
+      roadlevel: "0"
+    };
+
+    const response = await fetch(`${url}?${new URLSearchParams(params)}`);
+    if (!response.ok) {
+      this.logger.error(`Request failed with status ${response.status}`);
+      return { country:null, state:null, city:null, district:null, address:null };
+    }
+
+    const data = await response.json();
+    const country = data.regeocode.addressComponent.country;
+    const state = data.regeocode.addressComponent.province;
+    let city = data.regeocode.addressComponent.city;
+    if (city == '' || city == null) {
+      city = data.regeocode.addressComponent.province;
+    }
+    const district = data.regeocode.addressComponent.district;
+    const address = data.regeocode.formatted_address;
+
+    return { country, state, city, district, address };
+  }
+
 
   async reverseGeocode(point: GeoPoint): Promise<ReverseGeocodeResult> {
     this.logger.debug(`Request: ${point.latitude},${point.longitude}`);
 
+    // base on env GEOCODE_WITH_AMAP, if true, use amap to reverse geocode
+    if (process.env.GEOCODE_WITH_AMAP === 'true') {
+      this.logger.log('Using Amap for reverse geocoding');
+      return this.reverseGeocodeWithAmap(point);
+    }
+  
     const response = await this.geodataPlacesRepository
       .createQueryBuilder('geoplaces')
       .where('earth_box(ll_to_earth(:latitude, :longitude), 25000) @> "earthCoord"', point)
@@ -124,11 +167,13 @@ export class MapRepository implements IMapRepository {
     if (response) {
       this.logger.verbose(`Raw: ${JSON.stringify(response, null, 2)}`);
 
-      const { countryCode, name: city, admin1Name } = response;
+      const { countryCode, name: city, admin1Name, admin2Name } = response;
       const country = getName(countryCode, 'en') ?? null;
       const state = admin1Name;
-
-      return { country, state, city };
+      const district = null;
+      const address = null;
+      
+      return { country, state, city, district, address };
     }
 
     this.logger.warn(
@@ -146,7 +191,7 @@ export class MapRepository implements IMapRepository {
         `Response from database for natural earth reverse geocoding latitude: ${point.latitude}, longitude: ${point.longitude} was null`,
       );
 
-      return { country: null, state: null, city: null };
+      return { country: null, state: null, city: null, district: null, address: null };
     }
 
     this.logger.verbose(`Raw: ${JSON.stringify(ne_response, ['id', 'admin', 'admin_a3', 'type'], 2)}`);
@@ -155,8 +200,10 @@ export class MapRepository implements IMapRepository {
     const country = getName(admin_a3, 'en') ?? null;
     const state = null;
     const city = null;
+    const district = null;  
+    const address = null;
 
-    return { country, state, city };
+    return { country, state, city, district, address };
   }
 
   private transformCoordinatesToPolygon(coordinates: number[][][]): string {

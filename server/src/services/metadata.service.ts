@@ -624,7 +624,7 @@ export class MetadataService extends BaseService {
       longitude = null;
     }
 
-    let result: ReverseGeocodeResult = { country: null, state: null, city: null };
+    let result: ReverseGeocodeResult = { country: null, state: null, city: null, district: null, address: null };
     if (reverseGeocoding.enabled && longitude && latitude) {
       result = await this.mapRepository.reverseGeocode({ latitude, longitude });
     }
